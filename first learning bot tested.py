@@ -64,7 +64,7 @@ class SimpleSelfPlayReward(RewardFunction):
             if is_terminated[agent]:
                 goal_x = ball_pos[0]
                 if car.team_num == 0:
-                    reward += 100.0 if goal_x > 0 else +100.0
+                    reward += 100.0 if goal_x > 0 else -100.0
                 else:
                     reward -= 100.0 if goal_x < 0 else 100.0
 
