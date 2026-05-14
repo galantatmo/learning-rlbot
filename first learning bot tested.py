@@ -6,10 +6,19 @@ import torch.optim as optim
 
 from rlgym.api import RLGym, RewardFunction
 from rlgym.rocket_league.action_parsers import LookupTableAction, RepeatAction
-from rlgym.rocket_league.done_conditions import GoalCondition, AnyCondition, TimeoutCondition, NoTouchTimeoutCondition
+from rlgym.rocket_league.done_conditions import (
+    GoalCondition,
+    AnyCondition,
+    TimeoutCondition,
+    NoTouchTimeoutCondition,
+)
 from rlgym.rocket_league.obs_builders import DefaultObs
 from rlgym.rocket_league.sim import RocketSimEngine
-from rlgym.rocket_league.state_mutators import MutatorSequence, FixedTeamSizeMutator, KickoffMutator
+from rlgym.rocket_league.state_mutators import (
+    MutatorSequence,
+    FixedTeamSizeMutator,
+    KickoffMutator,
+)
 from rlgym.rocket_league.reward_functions import CombinedReward, TouchReward
 from RocketSim import GameMode
 
@@ -23,6 +32,7 @@ os.makedirs("checkpoints", exist_ok=True)
 # Option 1: Alten Checkpoint löschen, wenn Netzwerkgröße geändert
 if os.path.exists(MODEL_PATH):
     os.remove(MODEL_PATH)
+
 
 # =========================
 # 🎯 Belohnungsfunktion
@@ -73,6 +83,7 @@ class SimpleSelfPlayReward(RewardFunction):
         self.last_ball_pos = ball_pos.copy()
         return rewards
 
+
 # =========================
 # 🧠 Policy Network
 # =========================
@@ -85,11 +96,12 @@ class PolicyNet(nn.Module):
             nn.Linear(256, 256),
             nn.ReLU(),
             nn.Linear(256, action_size),
-            nn.Softmax(dim=-1)
+            nn.Softmax(dim=-1),
         )
 
     def forward(self, x):
         return self.net(x)
+
 
 # =========================
 # 🤖 Agent
@@ -141,76 +153,86 @@ class Agent:
         torch.save(self.model.state_dict(), MODEL_PATH)
         print("💾 Modell gespeichert!")
 
+
 # =========================
 # 🌍 Environment
 # =========================
 env = RLGym(
     state_mutator=MutatorSequence(
-        FixedTeamSizeMutator(blue_size=1, orange_size=1),
-        KickoffMutator()
+        FixedTeamSizeMutator(blue_size=1, orange_size=1), KickoffMutator()
     ),
     obs_builder=DefaultObs(),
     action_parser=RepeatAction(LookupTableAction(), repeats=8),
-    reward_fn=CombinedReward(
-        (SimpleSelfPlayReward(), 1.0),
-        (TouchReward(), 2.0)
-    ),
+    reward_fn=CombinedReward((SimpleSelfPlayReward(), 1.0), (TouchReward(), 2.0)),
     termination_cond=GoalCondition(),
     truncation_cond=AnyCondition(
-        TimeoutCondition(timeout_seconds=60.),
-        NoTouchTimeoutCondition(timeout_seconds=15.0)
+        TimeoutCondition(timeout_seconds=60.0),
+        NoTouchTimeoutCondition(timeout_seconds=15.0),
     ),
-    transition_engine=RocketSimEngine(game_mode=GameMode.SOCCAR)
+    transition_engine=RocketSimEngine(game_mode=GameMode.SOCCAR),
 )
+
 
 # =========================
 # 🚀 Training Loop
 # =========================
-obs = env.reset()
-agent_ids = list(env.agents)
-obs_size = np.array(obs[agent_ids[0]]).flatten().shape[0]
-action_size = env.action_spaces[agent_ids[0]][1]
-
-player = Agent(obs_size, action_size, trainable=True)
-
-EPISODES = 10000
-avg = 0.0
-wins = 0
-
-for episode in range(1, EPISODES + 1):
+def train():
     obs = env.reset()
-    total_reward = 0
-    winner = None
+    agent_ids = list(env.agents)
+    obs_size = np.array(obs[agent_ids[0]]).flatten().shape[0]
+    action_size = env.action_spaces[agent_ids[0]][1]
 
-    while True:
-        actions = {}
-        actions[agent_ids[0]] = player.act(obs[agent_ids[0]], exploration=0.5)
-        actions[agent_ids[1]] = np.random.randint(0, action_size, size=1)  # einfacher zufälliger Gegner
+    player = Agent(obs_size, action_size, trainable=True)
 
-        next_obs, rewards, terminated, truncated = env.step(actions)
-        total_reward += rewards[agent_ids[0]]
-        player.rewards.append(rewards[agent_ids[0]])
-        obs = next_obs
+    EPISODES = 10000
+    avg = 0.0
+    wins = 0
 
-        if terminated[agent_ids[0]] or terminated[agent_ids[1]] or truncated[agent_ids[0]]:
-            break
+    for episode in range(1, EPISODES + 1):
+        obs = env.reset()
+        total_reward = 0
+        winner = None
 
-    # Gewinner bestimmen
-    if terminated[agent_ids[0]]:
-        wins += 1
-        winner = "Player"
-    elif terminated[agent_ids[1]]:
-        winner = "Opponent"
-    else:
-        winner = "No goal"
+        while True:
+            actions = {}
+            actions[agent_ids[0]] = player.act(obs[agent_ids[0]], exploration=0.5)
+            actions[agent_ids[1]] = np.random.randint(
+                0, action_size, size=1
+            )  # einfacher zufälliger Gegner
 
-    # Moving Average Reward
-    a = 0.05
-    avg = a * total_reward + (1 - a) * avg
+            next_obs, rewards, terminated, truncated = env.step(actions)
+            total_reward += rewards[agent_ids[0]]
+            player.rewards.append(rewards[agent_ids[0]])
+            obs = next_obs
 
-    print(f"Ep {episode} | Reward: {total_reward:.2f} | Avg: {avg:.2f} | Winner: {winner} | Winrate: {(wins/episode*100):.1f}%")
+            if (
+                terminated[agent_ids[0]]
+                or terminated[agent_ids[1]]
+                or truncated[agent_ids[0]]
+            ):
+                break
 
-    player.learn()
+        # Gewinner bestimmen
+        if terminated[agent_ids[0]]:
+            wins += 1
+            winner = "Player"
+        elif terminated[agent_ids[1]]:
+            winner = "Opponent"
+        else:
+            winner = "No goal"
 
-    if episode % SAVE_INTERVAL == 0:
-        player.save()
+        # Moving Average Reward
+        a = 0.05
+        avg = a * total_reward + (1 - a) * avg
+
+        print(
+            f"Ep {episode} | Reward: {total_reward:.2f} | Avg: {avg:.2f} | Winner: {winner} | Winrate: {(wins/episode*100):.1f}%"
+        )
+
+        player.learn()
+
+        if episode % SAVE_INTERVAL == 0:
+            player.save()
+
+    if __name__ == "__main__":
+        train()
