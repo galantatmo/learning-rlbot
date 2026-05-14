@@ -234,5 +234,6 @@ def train():
         if episode % SAVE_INTERVAL == 0:
             player.save()
 
-    if __name__ == "__main__":
-        train()
+
+if __name__ == "__main__":
+    train()
