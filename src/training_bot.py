@@ -20,7 +20,7 @@ from rlgym.rocket_league.state_mutators import (
     KickoffMutator,
 )
 from rlgym.rocket_league.reward_functions import CombinedReward, TouchReward
-from RocketSim import GameMode
+from RocketSim import GameMode, Arena
 
 # =========================
 # Pfade & Checkpoints
@@ -169,7 +169,8 @@ env = RLGym(
         TimeoutCondition(timeout_seconds=60.0),
         NoTouchTimeoutCondition(timeout_seconds=15.0),
     ),
-    transition_engine=RocketSimEngine(game_mode=GameMode.SOCCAR),
+    arena=Arena(GameMode.SOCCAR),
+    transition_engine=RocketSimEngine(),
 )
 
 
