@@ -1,0 +1,7 @@
+[project]
+name = "learning-rlbot"
+version = "0.1.0"
+description = "play with RL for RocketSim"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
